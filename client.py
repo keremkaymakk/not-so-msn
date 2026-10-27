@@ -119,8 +119,8 @@ class ClientGUI:
             if not command:
                 continue    # Skip the blank lines
 
-            if command.startswith("sendmsg "):
-                message = command[len("sendmsg "):].strip()
+            if command.startswith("sndmsg "):
+                message = command[len("sndmsg "):].strip()
                 if message and self.network:
                     self.network.send_message(target_user, message)
 
