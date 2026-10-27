@@ -19,8 +19,47 @@ class ClientGUI:
         self.response_queue = response_queue
         self.network = None
 
+        # Window title and shape
+        self.root.title(self.username)
+        self.root.geometry('800x600')
+        self.root.minsize(640, 480)
+
+        # Grid structure 2x2
+        self.root.grid_columnconfigure(0, weight=1) # Left column can expand with the window
+        self.root.grid_columnconfigure(1, weight=0, minsize=180)    # Right column size stays fixed
+        self.root.grid_rowconfigure(0, weight=7)    # Top row takes more space
+        self.root.grid_rowconfigure(1, weight=3)    # Bottom row takes less space
+
+        # Top-left: Output (messages) area
+        self.output_text = tk.Text(self.root, height=16, state=tk.DISABLED, wrap=tk.WORD)   # Uneditable and left-aligned text
+        self.output_text.grid(row=0, column=0, sticky='nsew', padx=(10,5), pady=(10,5))
+
+        # Bottom-left: Input (commands) area
+        self.command_text = tk.Text(self.root, height=12, wrap=tk.NONE) # Editable and non-aligned text
+        self.command_text.grid(row=1, column=0, sticky='nsew', padx=(10,5), pady=(5,10))
+
+        # Top-right: Userlist listbox
+        top_right = tk.Frame(self.root) # Frame of the top-right
+        top_right.grid(row=0, column=1, sticky='nsew', padx=(5,10), pady=(10,5))
+
+        tk.Label(top_right, text="Users", anchor='w').pack(fill=tk.X)
+        self.user_listbox = tk.Listbox(top_right, selectmode=tk.SINGLE, exportselection=False)
+        self.user_listbox.pack(fill=tk.BOTH, expand=True)
+
+        # Bottom-right: Execute and disconnect buttons
+        bottom_right = tk.Frame(self.root) # Frame of the bottom-right
+        bottom_right.grid(row=1, column=1, sticky='sew', padx=(5,10), pady=(5,10))
+
+        self.execute_button = tk.Button(bottom_right, text="Execute", command=self._on_execute)
+        self.execute_button.pack(fill=tk.X, pady=(0,5))
+
+        self.disconnect_button = tk.Button(bottom_right, text="Disconnect", command=self._on_disconnect)
+        self.disconnect_button.pack(fill=tk.X)
+
+        # Close window protocol and queue listener
         self.root.protocol("WM_DELETE_WINDOW", self._on_disconnect)
         self.root.after(100, self._process_queue)
+
 
     def _process_queue(self):
         """
@@ -54,33 +93,79 @@ class ClientGUI:
         finally:
             self.root.after(100, self._process_queue)
 
+
     def set_network(self, network):
         """
         Binds the ClientNetwork instance to the GUI.
         """
         self.network = network
 
+
     def _on_execute(self):
         """
         The method called when the execute button is pressed.
         """
-        return
+        raw_commands = self.command_text.get('1.0', tk.END).strip()
+        if not raw_commands:
+            return
+
+        target_user = self.get_selected_user()
+        if not target_user:
+            messagebox.showwarning("No user selected", "Please select a user from the list.")
+            return
+
+        for command in raw_commands.splitlines():
+            command = command.strip()
+            if not command:
+                continue    # Skip the blank lines
+
+            if command.startswith("sendmsg "):
+                message = command[len("sendmsg "):].strip()
+                if message and self.network:
+                    self.network.send_message(target_user, message)
+
+            elif command.startswith("sndf "):
+                filepath = command[len("sndf "):].strip()
+
+                # Quote mark trimming
+                if (filepath.startswith("'") and filepath.endswith("'")) or (filepath.startswith('"') and filepath.endswith('"')):
+                    filepath = filepath[1:-1].strip()
+            
+                if filepath and self.network:
+                    self.network.send_file(target_user, filepath)
+
+            else:
+                self._append_output(f"SYSTEM > Unknown command: {command}")
+
+        self.command_text.delete('1.0', tk.END)
+
 
     def _on_disconnect(self):
         """
-        The method called when the disconnect button is pressed.
+        The method called when the disconnect button or 'X' button is pressed.
         """
-        return
+        if self.network:
+            try:
+                self.network.disconnect()
+            except Exception as e:
+                print(f"Error while disconnecting: {e}")
+
+        self.root.destroy()
+
 
     def _append_output(self, text):
         """
         Appends a text to the output area.
         """
-        return
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.insert(tk.END, text + "\n")
+        self.output_text.see(tk.END)
+        self.output_text.config(state=tk.DISABLED)
+
 
     def _update_user_dict(self, user_dict):
         """
-        Reloads the user dictionary.
+        Reloads the user dictionary in the GUI.
 
         :param user_dict: A JSON string, with a sample entry on the outer dictionary being:
                             "<username>": {
@@ -88,13 +173,30 @@ class ClientGUI:
                                 "port": <port number>   # Be careful that the port value is an integer
                             }
         """
-        return
+        previous_selection = self.get_selected_user()
+
+        users = json.loads(user_dict)
+
+        self.user_listbox.delete(0, tk.END)
+
+        for idx, user in enumerate(users.keys()):
+            if user == self.username:
+                continue
+
+            self.user_listbox.insert(tk.END, user)
+
+            if user == previous_selection:
+                self.user_listbox.selection_set(idx)
+
 
     def get_selected_user(self):
         """
         Returns the username selected in the user listbox.
         """
-        return
+        selection = self.user_listbox.curselection()
+        if selection:
+            return self.user_listbox.get(selection[0])
+        return None
 
     def prompt_file_acceptance(self, sender_username, filename):
         """
@@ -104,7 +206,10 @@ class ClientGUI:
         :param filename: Filename to display.
         :return: True if accepted, or False if rejected.
         """
-        return
+        return messagebox.askyesno(
+            "Incoming file transfer request",
+            f"'{sender_username}' wants to send you the file:\n'{filename}'\n\nDo you accept to download this file?"
+        )
 
 
 class ClientNetwork:
