@@ -6,6 +6,8 @@ import threading
 import tkinter as tk
 from tkinter import messagebox
 
+from client_network import ClientNetwork  # 2. kişinin modülü
+
 
 class ClientGUI:
     """
@@ -25,33 +27,34 @@ class ClientGUI:
         self.root.minsize(640, 480)
 
         # Grid structure 2x2
-        self.root.grid_columnconfigure(0, weight=1) # Left column can expand with the window
-        self.root.grid_columnconfigure(1, weight=0, minsize=180)    # Right column size stays fixed
-        self.root.grid_rowconfigure(0, weight=7)    # Top row takes more space
-        self.root.grid_rowconfigure(1, weight=3)    # Bottom row takes less space
+        self.root.grid_columnconfigure(0, weight=1)  # Left column can expand with the window
+        self.root.grid_columnconfigure(1, weight=0, minsize=180)  # Right column size stays fixed
+        self.root.grid_rowconfigure(0, weight=7)  # Top row takes more space
+        self.root.grid_rowconfigure(1, weight=3)  # Bottom row takes less space
 
         # Top-left: Output (messages) area
-        self.output_text = tk.Text(self.root, height=16, state=tk.DISABLED, wrap=tk.WORD)   # Uneditable and left-aligned text
-        self.output_text.grid(row=0, column=0, sticky='nsew', padx=(10,5), pady=(10,5))
+        self.output_text = tk.Text(self.root, height=16, state=tk.DISABLED,
+                                   wrap=tk.WORD)  # Uneditable and left-aligned text
+        self.output_text.grid(row=0, column=0, sticky='nsew', padx=(10, 5), pady=(10, 5))
 
         # Bottom-left: Input (commands) area
-        self.command_text = tk.Text(self.root, height=12, wrap=tk.NONE) # Editable and non-aligned text
-        self.command_text.grid(row=1, column=0, sticky='nsew', padx=(10,5), pady=(5,10))
+        self.command_text = tk.Text(self.root, height=12, wrap=tk.NONE)  # Editable and non-aligned text
+        self.command_text.grid(row=1, column=0, sticky='nsew', padx=(10, 5), pady=(5, 10))
 
         # Top-right: Userlist listbox
-        top_right = tk.Frame(self.root) # Frame of the top-right
-        top_right.grid(row=0, column=1, sticky='nsew', padx=(5,10), pady=(10,5))
+        top_right = tk.Frame(self.root)  # Frame of the top-right
+        top_right.grid(row=0, column=1, sticky='nsew', padx=(5, 10), pady=(10, 5))
 
         tk.Label(top_right, text="Users", anchor='w').pack(fill=tk.X)
         self.user_listbox = tk.Listbox(top_right, selectmode=tk.SINGLE, exportselection=False)
         self.user_listbox.pack(fill=tk.BOTH, expand=True)
 
         # Bottom-right: Execute and disconnect buttons
-        bottom_right = tk.Frame(self.root) # Frame of the bottom-right
-        bottom_right.grid(row=1, column=1, sticky='sew', padx=(5,10), pady=(5,10))
+        bottom_right = tk.Frame(self.root)  # Frame of the bottom-right
+        bottom_right.grid(row=1, column=1, sticky='sew', padx=(5, 10), pady=(5, 10))
 
         self.execute_button = tk.Button(bottom_right, text="Execute", command=self._on_execute)
-        self.execute_button.pack(fill=tk.X, pady=(0,5))
+        self.execute_button.pack(fill=tk.X, pady=(0, 5))
 
         self.disconnect_button = tk.Button(bottom_right, text="Disconnect", command=self._on_disconnect)
         self.disconnect_button.pack(fill=tk.X)
@@ -59,7 +62,6 @@ class ClientGUI:
         # Close window protocol and queue listener
         self.root.protocol("WM_DELETE_WINDOW", self._on_disconnect)
         self.root.after(100, self._process_queue)
-
 
     def _process_queue(self):
         """
@@ -93,13 +95,11 @@ class ClientGUI:
         finally:
             self.root.after(100, self._process_queue)
 
-
     def set_network(self, network):
         """
         Binds the ClientNetwork instance to the GUI.
         """
         self.network = network
-
 
     def _on_execute(self):
         """
@@ -117,7 +117,7 @@ class ClientGUI:
         for command in raw_commands.splitlines():
             command = command.strip()
             if not command:
-                continue    # Skip the blank lines
+                continue  # Skip the blank lines
 
             if command.startswith("sndmsg "):
                 message = command[len("sndmsg "):].strip()
@@ -128,9 +128,10 @@ class ClientGUI:
                 filepath = command[len("sndf "):].strip()
 
                 # Quote mark trimming
-                if (filepath.startswith("'") and filepath.endswith("'")) or (filepath.startswith('"') and filepath.endswith('"')):
+                if (filepath.startswith("'") and filepath.endswith("'")) or (
+                        filepath.startswith('"') and filepath.endswith('"')):
                     filepath = filepath[1:-1].strip()
-            
+
                 if filepath and self.network:
                     self.network.send_file(target_user, filepath)
 
@@ -138,7 +139,6 @@ class ClientGUI:
                 self._append_output(f"SYSTEM > Unknown command: {command}")
 
         self.command_text.delete('1.0', tk.END)
-
 
     def _on_disconnect(self):
         """
@@ -152,7 +152,6 @@ class ClientGUI:
 
         self.root.destroy()
 
-
     def _append_output(self, text):
         """
         Appends a text to the output area.
@@ -161,7 +160,6 @@ class ClientGUI:
         self.output_text.insert(tk.END, text + "\n")
         self.output_text.see(tk.END)
         self.output_text.config(state=tk.DISABLED)
-
 
     def _update_user_dict(self, user_dict):
         """
@@ -188,7 +186,6 @@ class ClientGUI:
             if user == previous_selection:
                 self.user_listbox.selection_set(idx)
 
-
     def get_selected_user(self):
         """
         Returns the username selected in the user listbox.
@@ -212,58 +209,6 @@ class ClientGUI:
         )
 
 
-class ClientNetwork:
-    """
-    The socket and P2P connection handler class.
-    """
-
-    def __init__(self, server_ip, server_port, username, gui, network_queue, response_queue):
-        """
-        ClientNetwork constructor.
-
-        :param server_ip: IP address of the server.
-        :param server_port: Port number of the server.
-        :param username: Username string of client user.
-        :param gui: ClientGUI instance to display the GUI.
-        :param network_queue: Queue of incoming network request tuples. Format: ("<TYPE>", "<data>")
-        :param response_queue: Queue of user responses to prompts. Format: JSON string '{"prompt_id": ..., "accepted": ...}'
-        """
-        self.server_ip = server_ip
-        self.server_port = server_port
-        self.username = username
-        self.gui = gui
-        self.network_queue = network_queue
-        self.response_queue = response_queue
-
-    def start(self):
-        """
-        Starts listening on an available port, registers to central server, and launches background listener threads.
-        """
-        pass
-
-    def send_message(self, target_username, message):
-        """
-        Called after 'sndmsg' command is parsed in GUI. Using the target user's IP/Port info, sends
-        'MSG|<username>|<message>'.
-        (Must run on a background thread to not block any other threads.)
-        """
-        pass
-
-    def send_file(self, target_username, filepath):
-        """
-        Called after 'sndf' command is parsed in GUI. Using the target user's IP/Port info,
-        starts a 3-step file transfer protocol (FILE_REQ -> FILE_ACC -> Chunk Transfer)
-        in a different worker thread.
-        """
-        pass
-
-    def disconnect(self):
-        """
-        Called after Disconnect button is pressed on the GUI.
-        """
-        pass
-
-
 def main():
     if len(sys.argv) < 4:
         print("Usage: python client <server-ip-address> <server-port-number> <user-name>")
@@ -274,25 +219,23 @@ def main():
     server_port = int(sys.argv[2])
     client_username = sys.argv[3]
 
-
     """
     Network Threads -> GUI
     Queue of incoming network request tuples. Entry tuple format is: ("<TYPE>", "<data>")
-    
-    
+
+
     Three kinds of entries:
-    
+
     1- ("OUTPUT", "<Display Message>")
         e.g. ("OUTPUT", "Zoktay > Merhaba")
-    
+
     2- ("USER_DICT", "<User Dictionary in JSON format>")
         e.g. ("USER_DICT", "{"Dipper": {"ip": "123.123.123.123", "port": 123}}")
-    
+
     3- ("FILE_PROMPT", "<Prompt info in JSON format>")
         e.g. ("FILE_PROMPT", "{"sender": "Mesut Komiser", "filename": "ğığığı.mp3", "prompt_id": "751"}")
     """
     network_queue = queue.Queue()
-
 
     """
     GUI -> Network Threads
@@ -323,15 +266,7 @@ def main():
     gui = ClientGUI(root, client_username, network_queue, response_queue)
 
     # Start connection threads and bind to GUI
-    """
-        Note: 
-        Please use ClientNetwork class to write code in. 
-        
-        Please see the docstrings on how to use them.
-        
-        Also, in incoming network requests, please use network_queue.put(<Queue entry>).
-        See the entry format in network_queue description.
-    """
+
     network = ClientNetwork(server_ip, server_port, client_username, gui, network_queue, response_queue)
     gui.set_network(network)
     network.start()
