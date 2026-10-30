@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from client_network import ClientNetwork  # 2. kişinin modülü
+from file_transfer import FileTransferHandler  # 3. kişinin modülü
 
 
 class ClientGUI:
@@ -129,7 +130,8 @@ class ClientGUI:
 
                 # Quote mark trimming
                 if (filepath.startswith("'") and filepath.endswith("'")) or (
-                        filepath.startswith('"') and filepath.endswith('"')):
+                        filepath.startswith('"') and filepath.endswith('"')) or (
+                        filepath.startswith('“') and filepath.endswith('”')):
                     filepath = filepath[1:-1].strip()
 
                 if filepath and self.network:
@@ -269,6 +271,7 @@ def main():
 
     network = ClientNetwork(server_ip, server_port, client_username, gui, network_queue, response_queue)
     gui.set_network(network)
+    network.set_file_transfer_handler(FileTransferHandler(network))
     network.start()
 
     # Run GUI main loop in the main thread
