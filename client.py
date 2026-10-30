@@ -186,7 +186,7 @@ class ClientGUI:
             self.user_listbox.insert(tk.END, user)
 
             if user == previous_selection:
-                self.user_listbox.selection_set(idx)
+                self.user_listbox.selection_set(tk.END)
 
     def get_selected_user(self):
         """
